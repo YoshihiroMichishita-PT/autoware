@@ -20,6 +20,8 @@
 #include <autoware_auto_planning_msgs/msg/path.hpp>
 #include <autoware_auto_planning_msgs/msg/path_with_lane_id.hpp>
 #include <autoware_auto_planning_msgs/msg/trajectory.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <fmt/format.h>
 
 #include <memory>
 #include <utility>
@@ -80,8 +82,17 @@ void visualizeBound(
       if (diff_angle == 0.0) {
         return std::make_pair(normal_vector_angle, width);
       }
-
-      return std::make_pair(normal_vector_angle, width / std::sin(diff_angle));
+      const float ad_width = width / std::sin(diff_angle);
+      //return std::make_pair(normal_vector_angle, ad_width);
+      
+      if(std::abs(ad_width)>1.0){
+        RCLCPP_WARN_STREAM(rclcpp::get_logger("VisualizeBound(display.hpp)"),"use width");
+        //return std::make_pair(normal_vector_angle, ad_width/std::abs(ad_width));
+        return std::make_pair(normal_vector_angle, width);
+      }
+      else{
+        return std::make_pair(normal_vector_angle, ad_width);
+      }
     }();
 
     normal_vector_angles.push_back(normal_vector_angle);
@@ -95,12 +106,14 @@ void visualizeBound(
 
     const auto x_offset = static_cast<float>(adaptive_width * 0.5 * std::cos(normal_vector_angle));
     const auto y_offset = static_cast<float>(adaptive_width * 0.5 * std::sin(normal_vector_angle));
+
     auto target_lp = bound.at(i);
     target_lp.x = target_lp.x + x_offset;
     target_lp.y = target_lp.y + y_offset;
     target_lp.z = target_lp.z;
     bound_object->position(target_lp.x, target_lp.y, target_lp.z);
     bound_object->colour(color);
+
     auto target_rp = bound.at(i);
     target_rp.x = target_rp.x - x_offset;
     target_rp.y = target_rp.y - y_offset;

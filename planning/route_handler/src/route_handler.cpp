@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "route_handler/route_handler.hpp"
+//#include "motion_utils/trajectory/trajectory.hpp" //additional
 
 #include <autoware_utils/math/normalization.hpp>
 #include <lanelet2_extension/utility/message_conversion.hpp>
@@ -20,7 +21,9 @@
 #include <lanelet2_extension/utility/route_checker.hpp>
 #include <lanelet2_extension/utility/utilities.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <tier4_autoware_utils/geometry/geometry.hpp>
+#include <fmt/format.h>
+//#include <tier4_autoware_utils/geometry/geometry.hpp>
+
 
 #include <autoware_auto_planning_msgs/msg/path.hpp>
 #include <autoware_auto_planning_msgs/msg/path_point_with_lane_id.hpp>
@@ -1637,6 +1640,7 @@ bool RouteHandler::isInTargetLane(
   return exists(target, lanelet);
 }
 
+
 PathWithLaneId RouteHandler::getCenterLinePath(
   const lanelet::ConstLanelets & lanelet_sequence, const double s_start, const double s_end,
   bool use_exact) const
@@ -1657,10 +1661,13 @@ PathWithLaneId RouteHandler::getCenterLinePath(
     };
 
     for (size_t i = 0; i < centerline.size(); i++) {
+      //size_t j = is_driving_forward ? i : centerline.size()-i-1;
+      //const auto & pt = centerline[j];
+      //const lanelet::ConstPoint3d next_pt = (j + 1 < centerline.size()) ? centerline[j + 1] : centerline[j];
       const auto & pt = centerline[i];
-      const lanelet::ConstPoint3d next_pt =
-        (i + 1 < centerline.size()) ? centerline[i + 1] : centerline[i];
-      const double distance = lanelet::geometry::distance2d(to2D(pt), to2D(next_pt));
+      const lanelet::ConstPoint3d next_pt = (i + 1 < centerline.size()) ? centerline[i + 1] : centerline[i];
+      
+      const double distance = lanelet::geometry::distance2d(to2D(pt), to2D(next_pt)); //これは正の値
 
       if (s < s_start && s + distance > s_start) {
         const auto p = use_exact ? get3DPointFrom2DArcLength(lanelet_sequence, s_start) : pt;
@@ -1669,18 +1676,20 @@ PathWithLaneId RouteHandler::getCenterLinePath(
       if (s >= s_start && s <= s_end) {
         add_path_point(pt);
       }
-      if (s < s_end && s + distance > s_end) {
+      //処理合ってる？
+      //if (s < s_end && s + distance > s_end) {
+      if (s > s_end && s - distance < s_end) {
         const auto p = use_exact ? get3DPointFrom2DArcLength(lanelet_sequence, s_end) : next_pt;
         add_path_point(p);
       }
       s += distance;
     }
   }
-
   reference_path = removeOverlappingPoints(reference_path);
 
   // append a point only when having one point so that yaw calculation would work
   if (reference_path.points.size() == 1) {
+    
     const lanelet::Id lane_id = static_cast<int>(reference_path.points.front().lane_ids.front());
     const auto lanelet = lanelet_map_ptr_->laneletLayer.get(lane_id);
     const auto point = reference_path.points.front().point.pose.position;
@@ -1693,14 +1702,15 @@ PathWithLaneId RouteHandler::getCenterLinePath(
     path_point.point.pose.position.z = point.z;
     reference_path.points.push_back(path_point);
   }
-
   // set angle
   for (size_t i = 0; i < reference_path.points.size(); i++) {
     double angle{0.0};
     const auto & pts = reference_path.points;
     if (i + 1 < reference_path.points.size()) {
+      //pointをダブルカウントしてるとここでバグる？
       angle = tier4_autoware_utils::calcAzimuthAngle(
         pts.at(i).point.pose.position, pts.at(i + 1).point.pose.position);
+      
     } else if (i != 0) {
       angle = tier4_autoware_utils::calcAzimuthAngle(
         pts.at(i - 1).point.pose.position, pts.at(i).point.pose.position);

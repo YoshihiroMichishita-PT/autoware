@@ -23,6 +23,7 @@
 #include <autoware_planning_msgs/msg/lanelet_segment.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <unique_identifier_msgs/msg/uuid.hpp>
+#include <tier4_autoware_utils/geometry/geometry.hpp>
 
 #include <lanelet2_core/Forward.h>
 #include <lanelet2_core/primitives/Lanelet.h>
@@ -450,6 +451,7 @@ private:
   bool findDrivableLanePath(
     const lanelet::ConstLanelet & start_lanelet, const lanelet::ConstLanelet & goal_lanelet,
     lanelet::routing::LaneletPath & drivable_lane_path) const;
+
 };
 }  // namespace route_handler
 #endif  // ROUTE_HANDLER__ROUTE_HANDLER_HPP_

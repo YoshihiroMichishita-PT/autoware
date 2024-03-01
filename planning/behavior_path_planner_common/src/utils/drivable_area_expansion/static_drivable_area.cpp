@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <rclcpp/rclcpp.hpp>
+#include <fmt/format.h>
 #include "behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 
 #include "behavior_path_planner_common/utils/drivable_area_expansion/drivable_area_expansion.hpp"
@@ -63,7 +65,6 @@ size_t findNearestSegmentIndexFromLateralDistance(
   if (closest_idx) {
     return *closest_idx;
   }
-
   return motion_utils::findNearestSegmentIndex(points, target_point);
 }
 
@@ -557,7 +558,6 @@ std::vector<Point> updateBoundary(
   for (const auto & polygon : reversed_polygons) {
     const auto & start_poly = polygon.front();
     const auto & end_poly = polygon.back();
-
     const double front_offset = motion_utils::calcLongitudinalOffsetToSegment(
       updated_bound, start_poly.bound_seg_idx, start_poly.point);
 
@@ -639,6 +639,8 @@ std::optional<size_t> getOverlappedLaneletId(const std::vector<DrivableLanes> & 
   return overlapped_idx;
 }
 
+//道が交差するまでのpathのうち、drivable areaと重なっている部分だけをpick up
+//ここの問題ではなさそう。
 std::vector<DrivableLanes> cutOverlappedLanes(
   PathWithLaneId & path, const std::vector<DrivableLanes> & lanes)
 {
@@ -646,7 +648,6 @@ std::vector<DrivableLanes> cutOverlappedLanes(
   if (!overlapped_lanelet_idx) {
     return lanes;
   }
-
   std::vector<DrivableLanes> shorten_lanes{lanes.begin(), lanes.begin() + *overlapped_lanelet_idx};
   const auto shorten_lanelets = utils::transformToLanelets(shorten_lanes);
 
@@ -684,7 +685,7 @@ std::vector<DrivableLanes> cutOverlappedLanes(
 
   // Step1. find first path point within drivable lanes
   size_t start_point_idx = original_points.size();
-
+  //pointsとdrivable_lanesの交点を見つけて、最初のそれをstart pointとする。
   for (size_t i = 0; i < original_points.size(); ++i) {
     const bool first_path_point_in_drivable_lane_found = std::any_of(
       shorten_lanes.begin(), shorten_lanes.end(),
@@ -781,6 +782,7 @@ void generateDrivableArea(
     path, planner_data, lanes, enable_expanding_hatched_road_markings,
     enable_expanding_intersection_areas, enable_expanding_freespace_areas, true,
     is_driving_forward);
+
   path.right_bound = calcBound(
     path, planner_data, lanes, enable_expanding_hatched_road_markings,
     enable_expanding_intersection_areas, enable_expanding_freespace_areas, false,
@@ -793,7 +795,7 @@ void generateDrivableArea(
       "The right or left bound of drivable area is empty");
     return;
   }
-
+  
   const auto & expansion_params = planner_data->drivable_area_expansion_parameters;
   if (expansion_params.enabled) {
     drivable_area_expansion::expand_drivable_area(path, planner_data);
@@ -1501,29 +1503,30 @@ std::vector<geometry_msgs::msg::Point> postProcess(
     }
   }
 
+  /*
   if (!is_driving_forward) {
     std::reverse(tmp_bound.begin(), tmp_bound.end());
-  }
+  }*/
 
-  const auto start_idx = [&]() {
+  const auto [start_idx, start_point] = [&]() {
     const size_t current_seg_idx = planner_data->findEgoSegmentIndex(path.points);
     const auto cropped_path_points = motion_utils::cropPoints(
       path.points, current_pose.position, current_seg_idx,
       planner_data->parameters.forward_path_length,
       planner_data->parameters.backward_path_length + planner_data->parameters.input_path_interval);
-
+    
     constexpr double front_length = 0.5;
     const auto front_pose =
       cropped_path_points.empty() ? current_pose : cropped_path_points.front().point.pose;
     const size_t front_start_idx =
       findNearestSegmentIndexFromLateralDistance(tmp_bound, front_pose, M_PI_2);
+    
     const auto start_point =
       calcLongitudinalOffsetStartPoint(tmp_bound, front_pose, front_start_idx, -front_length);
 
     // Insert a start point
-    processed_bound.push_back(start_point);
-
-    return findNearestSegmentIndexFromLateralDistance(tmp_bound, start_point);
+    //processed_bound.push_back(start_point);
+    return std::make_pair(findNearestSegmentIndexFromLateralDistance(tmp_bound, start_point), start_point);
   }();
 
   // Get Closest segment for the goal point
@@ -1533,25 +1536,54 @@ std::vector<geometry_msgs::msg::Point> postProcess(
       findNearestSegmentIndexFromLateralDistance(tmp_bound, goal_pose, M_PI_2);
     const auto goal_point =
       calcLongitudinalOffsetGoalPoint(tmp_bound, goal_pose, goal_start_idx, vehicle_length);
-    const size_t goal_idx =
-      std::max(goal_start_idx, findNearestSegmentIndexFromLateralDistance(tmp_bound, goal_point));
-
+    
+    const size_t goal_nearest_idx = findNearestSegmentIndexFromLateralDistance(tmp_bound, goal_point);
+    //const size_t goal_idx = is_driving_forward ? std::max(goal_start_idx, goal_nearest_idx) : std::min(goal_start_idx, goal_nearest_idx);
+    //const size_t goal_idx = std::max(goal_start_idx, goal_nearest_idx);
+    const size_t goal_idx = ((goal_start_idx - start_idx)*(goal_start_idx - start_idx) > (goal_nearest_idx - start_idx)*(goal_nearest_idx - start_idx)) ? goal_start_idx : goal_nearest_idx;
     return std::make_pair(goal_idx, goal_point);
   }();
-
-  // Insert middle points
+  /*
+  processed_bound.push_back(start_point);
   for (size_t i = start_idx + 1; i <= goal_idx; ++i) {
+  //for (size_t i = st + 1; i <= ed; ++i) {
     const auto & next_point = tmp_bound.at(i);
     const double dist = tier4_autoware_utils::calcDistance2d(processed_bound.back(), next_point);
     if (dist > overlap_threshold) {
       processed_bound.push_back(next_point);
     }
   }
-
-  // Insert a goal point
-  if (
-    tier4_autoware_utils::calcDistance2d(processed_bound.back(), goal_point) > overlap_threshold) {
+  if (tier4_autoware_utils::calcDistance2d(processed_bound.back(), goal_point) > overlap_threshold) {
     processed_bound.push_back(goal_point);
+  }*/
+  
+  //ForwardDriving
+  if(start_idx < goal_idx){
+    processed_bound.push_back(start_point);
+    for (size_t i = start_idx + 1; i <= goal_idx; ++i) {
+    //for (size_t i = st + 1; i <= ed; ++i) {
+      const auto & next_point = tmp_bound.at(i);
+      const double dist = tier4_autoware_utils::calcDistance2d(processed_bound.back(), next_point);
+      if (dist > overlap_threshold) {
+        processed_bound.push_back(next_point);
+      }
+    }
+    if (tier4_autoware_utils::calcDistance2d(processed_bound.back(), goal_point) > overlap_threshold) {
+      processed_bound.push_back(goal_point);
+    }
+  }
+  else{//BackwardDriving
+      processed_bound.push_back(start_point);
+      for (size_t i = start_idx-1; i >= goal_idx; --i) {
+      const auto & next_point = tmp_bound.at(i);
+      const double dist = tier4_autoware_utils::calcDistance2d(processed_bound.back(), next_point);
+      if (dist > overlap_threshold) {
+        processed_bound.push_back(next_point);
+      }
+    }
+    if (tier4_autoware_utils::calcDistance2d(processed_bound.back(), goal_point) > overlap_threshold) {
+      processed_bound.push_back(goal_point);
+    }
   }
 
   const bool skip_monotonic_process =
@@ -1619,6 +1651,7 @@ std::vector<geometry_msgs::msg::Point> calcBound(
                  enable_expanding_intersection_areas, is_left, is_driving_forward);
   };
 
+
   // Step2. if there is no drivable area defined by polygon, return original drivable bound.
   if (!enable_expanding_hatched_road_markings && !enable_expanding_intersection_areas) {
     return post_process(removeOverlapPoints(to_ros_point(bound_points)), skip_post_process);
@@ -1638,7 +1671,7 @@ std::vector<geometry_msgs::msg::Point> calcBound(
     bound_points =
       getBoundWithIntersectionAreas(bound_points, route_handler, drivable_lanes, is_left);
   }
-
+  
   return post_process(removeOverlapPoints(to_ros_point(bound_points)), skip_post_process);
 }
 
@@ -1655,6 +1688,7 @@ std::vector<geometry_msgs::msg::Point> makeBoundLongitudinallyMonotonic(
   using tier4_autoware_utils::getPose;
   using tier4_autoware_utils::intersect;
   using tier4_autoware_utils::normalizeRadian;
+
 
   const auto set_orientation = [](
                                  auto & bound_with_pose, const auto idx, const auto & orientation) {
@@ -1919,7 +1953,6 @@ std::vector<geometry_msgs::msg::Point> makeBoundLongitudinallyMonotonic(
 
     const auto ego_idx = planner_data->findEgoIndex(centerline_path.points);
     const auto end_idx = findNearestSegmentIndex(centerline_path.points, original_bound.back());
-
     if (ego_idx >= end_idx) {
       return original_bound;
     }

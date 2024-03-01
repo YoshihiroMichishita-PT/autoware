@@ -25,6 +25,8 @@
 #include <motion_utils/trajectory/interpolation.hpp>
 #include <motion_utils/trajectory/trajectory.hpp>
 #include <tier4_autoware_utils/system/stop_watch.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <fmt/format.h>
 
 #include <boost/geometry/strategies/strategies.hpp>
 

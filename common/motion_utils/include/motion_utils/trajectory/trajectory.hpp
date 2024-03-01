@@ -20,12 +20,15 @@
 #include "tier4_autoware_utils/math/constants.hpp"
 #include "tier4_autoware_utils/system/backtrace.hpp"
 
+
 #include <Eigen/Geometry>
 
 #include <autoware_auto_planning_msgs/msg/path_point.hpp>
 #include <autoware_auto_planning_msgs/msg/path_point_with_lane_id.hpp>
 #include <autoware_auto_planning_msgs/msg/trajectory_point.hpp>
-
+#include <iostream>
+//#include <rclcpp/rclcpp.hpp>
+//#include <fmt/format.h>
 #include <algorithm>
 #include <limits>
 #include <optional>
@@ -1074,8 +1077,8 @@ std::optional<geometry_msgs::msg::Point> calcLongitudinalOffsetPoint(
   if (points.size() - 1 < src_idx) {
     const std::string error_message(
       "[motion_utils] " + std::string(__func__) +
-      " error: The given source index is out of the points size. Failed to calculate longitudinal "
-      "offset.");
+      " error: The given source index is out of the points size. Failed to calculate longitudinal offset.");
+
     tier4_autoware_utils::print_backtrace();
     if (throw_exception) {
       throw std::out_of_range(error_message);
@@ -1093,7 +1096,7 @@ std::optional<geometry_msgs::msg::Point> calcLongitudinalOffsetPoint(
   if (src_idx + 1 == points.size() && offset == 0.0) {
     return tier4_autoware_utils::getPoint(points.at(src_idx));
   }
-
+  
   if (offset < 0.0) {
     auto reverse_points = points;
     std::reverse(reverse_points.begin(), reverse_points.end());
@@ -1110,7 +1113,8 @@ std::optional<geometry_msgs::msg::Point> calcLongitudinalOffsetPoint(
     const auto dist_segment = tier4_autoware_utils::calcDistance2d(p_front, p_back);
     dist_sum += dist_segment;
 
-    const auto dist_res = offset - dist_sum;
+    //const auto dist_res = offset - dist_sum;
+    const auto dist_res = std::abs(offset) - dist_sum;
     if (dist_res <= 0.0) {
       return tier4_autoware_utils::calcInterpolatedPoint(
         p_back, p_front, std::abs(dist_res / dist_segment));
@@ -2073,17 +2077,18 @@ size_t findFirstNearestIndexWithSoftConstraints(
       const auto yaw =
         tier4_autoware_utils::calcYawDeviation(tier4_autoware_utils::getPose(points.at(i)), pose);
 
+      //遠すぎるもしくはyaw角もある程度大きな点ならば無視。既に良い点を見つけていればbreak
       if (squared_dist_threshold < squared_dist || yaw_threshold < std::abs(yaw)) {
         if (is_within_constraints) {
           break;
         }
         continue;
       }
-
+      //最近接出ない場合は無視
       if (min_squared_dist <= squared_dist) {
         continue;
       }
-
+      //条件を満たしていればminをアップデート
       min_squared_dist = squared_dist;
       min_idx = i;
       is_within_constraints = true;
@@ -2355,7 +2360,6 @@ T cropPoints(
   if (points.empty()) {
     return T{};
   }
-
   // NOTE: Cropping forward must be done first in order to keep target_seg_idx.
   const auto cropped_forward_points =
     cropForwardPoints(points, target_pos, target_seg_idx, forward_length);

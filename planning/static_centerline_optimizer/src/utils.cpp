@@ -93,6 +93,8 @@ PathWithLaneId get_path_with_lane_id(
   // generate drivable area and store it in path with lane id
   constexpr double vehicle_length = 0.0;
   const auto drivable_lanes = behavior_path_planner::utils::generateDrivableLanes(lanelets);
+  RCLCPP_ERROR_STREAM(rclcpp::get_logger("get_path_with_lane_id"),
+          fmt::format("is_driving_forward:{}", 100));
   behavior_path_planner::utils::generateDrivableArea(
     path_with_lane_id, drivable_lanes, false, false, vehicle_length, planner_data);
 

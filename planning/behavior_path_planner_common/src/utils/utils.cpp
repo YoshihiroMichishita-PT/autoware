@@ -1586,10 +1586,8 @@ lanelet::ConstLanelets getLaneletsFromPath(
   for (const auto & p : path.points) {
     const auto & lane_ids = p.lane_ids;
     for (const auto & lane_id : lane_ids) {
-      if (
-        std::find(unique_lanelet_ids.begin(), unique_lanelet_ids.end(), lane_id) ==
-        unique_lanelet_ids.end()) {
-        unique_lanelet_ids.push_back(lane_id);
+      if (std::find(unique_lanelet_ids.begin(), unique_lanelet_ids.end(), lane_id) == unique_lanelet_ids.end()) {
+        unique_lanelet_ids.push_back(lane_id);//unique_lanelet nonakanimitukaranakereba yousowotuikasiteiku.
       }
     }
   }

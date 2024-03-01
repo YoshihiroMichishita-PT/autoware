@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+#include <rclcpp/rclcpp.hpp>
+#include <fmt/format.h>
 #include "behavior_path_planner/planner_manager.hpp"
 
 #include "behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
@@ -197,7 +198,6 @@ BehaviorModuleOutput PlannerManager::run(const std::shared_ptr<PlannerData> & da
 
   std::for_each(
     manager_ptrs_.begin(), manager_ptrs_.end(), [](const auto & m) { m->updateObserver(); });
-
   generateCombinedDrivableArea(result_output, data);
 
   return result_output;
@@ -209,7 +209,6 @@ void PlannerManager::generateCombinedDrivableArea(
   BehaviorModuleOutput & output, const std::shared_ptr<PlannerData> & data) const
 {
   if (output.path.points.empty()) {
-    RCLCPP_ERROR_STREAM(logger_, "[generateCombinedDrivableArea] Output path is empty!");
     return;
   }
 
@@ -228,6 +227,7 @@ void PlannerManager::generateCombinedDrivableArea(
     utils::generateDrivableArea(
       output.path, di.drivable_lanes, false, false, false, data, is_driving_forward);
   } else {
+    
     const auto shorten_lanes = utils::cutOverlappedLanes(output.path, di.drivable_lanes);
 
     const auto & dp = data->drivable_area_expansion_parameters;

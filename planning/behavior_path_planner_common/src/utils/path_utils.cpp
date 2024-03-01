@@ -648,6 +648,7 @@ BehaviorModuleOutput createGoalAroundPath(const std::shared_ptr<const PlannerDat
   lanelet::ConstLanelet goal_lane;
   const bool is_failed_getting_lanelet = std::invoke([&]() {
     if (isInLanelets(goal_pose, shoulder_lanes)) {
+      //goalgarokatanihukumareteirukawokakuninn. hukumareteitarasokowogoaltosuru.
       return !lanelet::utils::query::getClosestLanelet(shoulder_lanes, goal_pose, &goal_lane);
     }
     return !route_handler->getGoalLanelet(&goal_lane);
@@ -671,7 +672,7 @@ BehaviorModuleOutput createGoalAroundPath(const std::shared_ptr<const PlannerDat
   const auto shorten_lanes = cutOverlappedLanes(reference_path, drivable_lanes);
   const auto expanded_lanes = expandLanelets(
     shorten_lanes, dp.drivable_area_left_bound_offset, dp.drivable_area_right_bound_offset,
-    dp.drivable_area_types_to_skip);
+    dp.drivable_area_types_to_skip);//現状Offset=0なので機能していない
 
   // Insert zero velocity to each point in the path.
   for (auto & point : reference_path.points) {
@@ -680,7 +681,7 @@ BehaviorModuleOutput createGoalAroundPath(const std::shared_ptr<const PlannerDat
 
   output.path = reference_path;
   output.reference_path = reference_path;
-  output.drivable_area_info.drivable_lanes = drivable_lanes;
+  output.drivable_area_info.drivable_lanes = expanded_lanes;//drivable_lanes;
 
   return output;
 }
