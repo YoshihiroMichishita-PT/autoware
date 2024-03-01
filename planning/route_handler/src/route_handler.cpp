@@ -1667,7 +1667,7 @@ PathWithLaneId RouteHandler::getCenterLinePath(
       const auto & pt = centerline[i];
       const lanelet::ConstPoint3d next_pt = (i + 1 < centerline.size()) ? centerline[i + 1] : centerline[i];
       
-      const double distance = lanelet::geometry::distance2d(to2D(pt), to2D(next_pt)); //これは正の値
+      const double distance = lanelet::geometry::distance2d(to2D(pt), to2D(next_pt)); 
 
       if (s < s_start && s + distance > s_start) {
         const auto p = use_exact ? get3DPointFrom2DArcLength(lanelet_sequence, s_start) : pt;
@@ -1676,9 +1676,8 @@ PathWithLaneId RouteHandler::getCenterLinePath(
       if (s >= s_start && s <= s_end) {
         add_path_point(pt);
       }
-      //処理合ってる？
-      //if (s < s_end && s + distance > s_end) {
-      if (s > s_end && s - distance < s_end) {
+      if (s < s_end && s + distance > s_end) {
+      //if (s > s_end && s - distance < s_end) { // The true condition?
         const auto p = use_exact ? get3DPointFrom2DArcLength(lanelet_sequence, s_end) : next_pt;
         add_path_point(p);
       }
